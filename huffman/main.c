@@ -28,13 +28,14 @@ int main(void) {
     }
 
     size_t input_len = 0;
-
     printf("Choose input method:\n");
     printf("1. Load from file (input.txt)\n");
     printf("2. Generate random input (%d bytes) with OpenCL\n", MAX_INPUT_SIZE);
-    printf("Enter choice [1/2]: ");
-    int choice = 0;
+    printf("3. Enter text manually\n");
+    printf("Enter choice [1/2/3]: ");
+    int choice;
     scanf("%d", &choice);
+    getchar();
 
     // OpenCL early setup
     cl_platform_id platform_id;
@@ -58,9 +59,8 @@ int main(void) {
         input_len = fread(input, 1, MAX_INPUT_SIZE, fp);
         fclose(fp);
         printf("Loaded %zu bytes from file.\n", input_len);
-    } else {
+    } else if (choice == 2) {
         input_len = MAX_INPUT_SIZE;
-        // random_generator.cl betöltése
         const char* rand_kernel_code = load_kernel_source("kernels/random_generator.cl", &error_code);
         if (error_code != 0) {
             fprintf(stderr, "Random kernel load error!\n");
@@ -100,7 +100,15 @@ int main(void) {
         clReleaseMemObject(rand_buffer);
 
         printf("Generated %zu random bytes with OpenCL.\n", input_len);
+    } else {
+        printf("Enter text: ");
+        fgets(input, MAX_INPUT_SIZE, stdin);
+        input_len = strlen(input);
+        if (input[input_len - 1] == '\n') {
+            input[--input_len] = '\0';
+        }
     }
+    
 
     // CPU megoldás
     clock_t start_seq = clock();
