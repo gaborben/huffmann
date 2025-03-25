@@ -9,13 +9,20 @@
 #include <time.h>
 
 #define MAX_INPUT_SIZE 100000000
+#define CHUNK_SIZE 1024
+
+int compare_freq(const void* a, const void* b) {
+    const int* fa = (const int*)a;
+    const int* fb = (const int*)b;
+    return fb[1] - fa[1];
+}
 
 int main(void) {
     cl_int err;
     int error_code;
 
     // --------------------------
-    // Adat betöltése
+    // Bemenet
     // --------------------------
     char* input = (char*)malloc(MAX_INPUT_SIZE);
     if (!input) {
@@ -52,7 +59,7 @@ int main(void) {
     }
 
     // --------------------------
-    // Szekvenciális számolás
+    // Szekvenciális megoldás
     // --------------------------
     clock_t start_seq = clock();
     int freq_seq[256] = {0};
@@ -62,16 +69,6 @@ int main(void) {
     }
     clock_t end_seq = clock();
     double time_seq = (double)(end_seq - start_seq) / CLOCKS_PER_SEC;
-
-    printf("\nSeq: First 10 non zero byte frequencies:\n");
-    int printed = 0;
-    for (int i = 0; i < 256 && printed < 10; i++) {
-        if (freq_seq[i] > 0) {
-            printf("Byte %3d: %d\n", i, freq_seq[i]);
-            printed++;
-        }
-    }
-    printf("Seq: Runtime: %.6f sec\n", time_seq);
 
     // --------------------------
     // OpenCL
@@ -120,9 +117,17 @@ int main(void) {
     clSetKernelArg(kernel, 1, sizeof(cl_mem), &freq_buffer);
     clSetKernelArg(kernel, 2, sizeof(cl_ulong), &input_len);
 
-    size_t global_work_size = input_len;
+    // --------------------------
+    // Kernel futtatása
+    // --------------------------
+    size_t num_chunks = (input_len + CHUNK_SIZE - 1) / CHUNK_SIZE;
+    size_t local_work_size = 256;
+    size_t global_work_size = ((num_chunks + local_work_size - 1) / local_work_size) * local_work_size;
+
     cl_event event;
-    clEnqueueNDRangeKernel(command_queue, kernel, 1, NULL, &global_work_size, NULL, 0, NULL, &event);
+    clEnqueueNDRangeKernel(command_queue, kernel, 1, NULL,
+                           &global_work_size, &local_work_size,
+                           0, NULL, &event);
     clFinish(command_queue);
 
     cl_ulong start, end;
@@ -133,13 +138,31 @@ int main(void) {
     int freq_gpu[256];
     clEnqueueReadBuffer(command_queue, freq_buffer, CL_TRUE, 0, 256 * sizeof(int), freq_gpu, 0, NULL, NULL);
 
-    printf("\nOpenCL: First 10 non zero byte frequencies:\n");
-    printed = 0;
-    for (int i = 0; i < 256 && printed < 10; i++) {
-        if (freq_gpu[i] > 0) {
-            printf("Byte %3d: %d\n", i, freq_gpu[i]);
-            printed++;
-        }
+    // --------------------------
+    // Eredmények (TOP 10)
+    // --------------------------
+    int freq_seq_top[256][2];
+    int freq_gpu_top[256][2];
+    for (int i = 0; i < 256; i++) {
+        freq_seq_top[i][0] = i;
+        freq_seq_top[i][1] = freq_seq[i];
+
+        freq_gpu_top[i][0] = i;
+        freq_gpu_top[i][1] = freq_gpu[i];
+    }
+
+    qsort(freq_seq_top, 256, sizeof(freq_seq_top[0]), compare_freq);
+    qsort(freq_gpu_top, 256, sizeof(freq_gpu_top[0]), compare_freq);
+
+    printf("\nSeq: Top 10 byte frequencies:\n");
+    for (int i = 0; i < 10; i++) {
+        printf("Byte %3d: %d\n", freq_seq_top[i][0], freq_seq_top[i][1]);
+    }
+    printf("Seq: Runtime: %.6f sec\n", time_seq);
+
+    printf("\nOpenCL: Top 10 byte frequencies:\n");
+    for (int i = 0; i < 10; i++) {
+        printf("Byte %3d: %d\n", freq_gpu_top[i][0], freq_gpu_top[i][1]);
     }
     printf("OpenCL: Runtime: %.6f sec\n", time_gpu);
 
