@@ -21,9 +21,6 @@ int main(void) {
     cl_int err;
     int error_code;
 
-    // --------------------------
-    // Bemenet
-    // --------------------------
     char* input = (char*)malloc(MAX_INPUT_SIZE);
     if (!input) {
         fprintf(stderr, "Memory allocation failed!\n");
@@ -34,10 +31,22 @@ int main(void) {
 
     printf("Choose input method:\n");
     printf("1. Load from file (input.txt)\n");
-    printf("2. Generate random input (%d bytes)\n", MAX_INPUT_SIZE);
+    printf("2. Generate random input (%d bytes) with OpenCL\n", MAX_INPUT_SIZE);
     printf("Enter choice [1/2]: ");
     int choice = 0;
     scanf("%d", &choice);
+
+    // OpenCL early setup
+    cl_platform_id platform_id;
+    cl_uint n_platforms;
+    err = clGetPlatformIDs(1, &platform_id, &n_platforms);
+
+    cl_device_id device_id;
+    cl_uint n_devices;
+    err = clGetDeviceIDs(platform_id, CL_DEVICE_TYPE_GPU, 1, &device_id, &n_devices);
+
+    cl_context context = clCreateContext(NULL, n_devices, &device_id, NULL, NULL, NULL);
+    cl_command_queue command_queue = clCreateCommandQueue(context, device_id, CL_QUEUE_PROFILING_ENABLE, NULL);
 
     if (choice == 1) {
         FILE* fp = fopen("input.txt", "rb");
@@ -51,16 +60,49 @@ int main(void) {
         printf("Loaded %zu bytes from file.\n", input_len);
     } else {
         input_len = MAX_INPUT_SIZE;
-        srand((unsigned)time(NULL));
-        for (size_t i = 0; i < input_len; i++) {
-            input[i] = rand() % 256;
+        // random_generator.cl betöltése
+        const char* rand_kernel_code = load_kernel_source("kernels/random_generator.cl", &error_code);
+        if (error_code != 0) {
+            fprintf(stderr, "Random kernel load error!\n");
+            free(input);
+            return 1;
         }
-        printf("Generated %zu random bytes.\n", input_len);
+
+        cl_program rand_program = clCreateProgramWithSource(context, 1, &rand_kernel_code, NULL, NULL);
+        err = clBuildProgram(rand_program, 1, &device_id, "", NULL, NULL);
+        if (err != CL_SUCCESS) {
+            size_t log_size;
+            clGetProgramBuildInfo(rand_program, device_id, CL_PROGRAM_BUILD_LOG, 0, NULL, &log_size);
+            char* build_log = (char*)malloc(log_size);
+            clGetProgramBuildInfo(rand_program, device_id, CL_PROGRAM_BUILD_LOG, log_size, build_log, NULL);
+            fprintf(stderr, "Random kernel build error:\n%s\n", build_log);
+            free(build_log);
+            return 1;
+        }
+
+        cl_kernel rand_kernel = clCreateKernel(rand_program, "generate_random_kernel", NULL);
+        cl_mem rand_buffer = clCreateBuffer(context, CL_MEM_WRITE_ONLY, input_len, NULL, NULL);
+
+        cl_ulong seed = (cl_ulong)time(NULL);
+        clSetKernelArg(rand_kernel, 0, sizeof(cl_mem), &rand_buffer);
+        clSetKernelArg(rand_kernel, 1, sizeof(cl_ulong), &seed);
+        clSetKernelArg(rand_kernel, 2, sizeof(cl_ulong), &input_len);
+
+        size_t local_size = 256;
+        size_t global_size = ((input_len + local_size - 1) / local_size) * local_size;
+
+        clEnqueueNDRangeKernel(command_queue, rand_kernel, 1, NULL, &global_size, &local_size, 0, NULL, NULL);
+        clFinish(command_queue);
+        clEnqueueReadBuffer(command_queue, rand_buffer, CL_TRUE, 0, input_len, input, 0, NULL, NULL);
+
+        clReleaseKernel(rand_kernel);
+        clReleaseProgram(rand_program);
+        clReleaseMemObject(rand_buffer);
+
+        printf("Generated %zu random bytes with OpenCL.\n", input_len);
     }
 
-    // --------------------------
-    // Szekvenciális megoldás
-    // --------------------------
+    // CPU megoldás
     clock_t start_seq = clock();
     int freq_seq[256] = {0};
     for (size_t i = 0; i < input_len; i++) {
@@ -70,19 +112,7 @@ int main(void) {
     clock_t end_seq = clock();
     double time_seq = (double)(end_seq - start_seq) / CLOCKS_PER_SEC;
 
-    // --------------------------
-    // OpenCL
-    // --------------------------
-    cl_platform_id platform_id;
-    cl_uint n_platforms;
-    err = clGetPlatformIDs(1, &platform_id, &n_platforms);
-
-    cl_device_id device_id;
-    cl_uint n_devices;
-    err = clGetDeviceIDs(platform_id, CL_DEVICE_TYPE_GPU, 1, &device_id, &n_devices);
-
-    cl_context context = clCreateContext(NULL, n_devices, &device_id, NULL, NULL, NULL);
-
+    // OpenCL kernel betöltése
     const char* kernel_code = load_kernel_source("kernels/byte_frequency.cl", &error_code);
     if (error_code != 0) {
         fprintf(stderr, "Kernel source load error!\n");
@@ -104,11 +134,8 @@ int main(void) {
     }
 
     cl_kernel kernel = clCreateKernel(program, "byte_frequency_kernel", NULL);
-
     cl_mem input_buffer = clCreateBuffer(context, CL_MEM_READ_ONLY, input_len, NULL, NULL);
     cl_mem freq_buffer = clCreateBuffer(context, CL_MEM_READ_WRITE, 256 * sizeof(int), NULL, NULL);
-
-    cl_command_queue command_queue = clCreateCommandQueue(context, device_id, CL_QUEUE_PROFILING_ENABLE, NULL);
 
     clEnqueueWriteBuffer(command_queue, input_buffer, CL_TRUE, 0, input_len, input, 0, NULL, NULL);
     clEnqueueFillBuffer(command_queue, freq_buffer, &(int){0}, sizeof(int), 0, 256 * sizeof(int), 0, NULL, NULL);
@@ -117,9 +144,6 @@ int main(void) {
     clSetKernelArg(kernel, 1, sizeof(cl_mem), &freq_buffer);
     clSetKernelArg(kernel, 2, sizeof(cl_ulong), &input_len);
 
-    // --------------------------
-    // Kernel futtatása
-    // --------------------------
     size_t num_chunks = (input_len + CHUNK_SIZE - 1) / CHUNK_SIZE;
     size_t local_work_size = 256;
     size_t global_work_size = ((num_chunks + local_work_size - 1) / local_work_size) * local_work_size;
@@ -138,9 +162,6 @@ int main(void) {
     int freq_gpu[256];
     clEnqueueReadBuffer(command_queue, freq_buffer, CL_TRUE, 0, 256 * sizeof(int), freq_gpu, 0, NULL, NULL);
 
-    // --------------------------
-    // Eredmények (TOP 10)
-    // --------------------------
     int freq_seq_top[256][2];
     int freq_gpu_top[256][2];
     for (int i = 0; i < 256; i++) {
