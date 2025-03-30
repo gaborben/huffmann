@@ -1,4 +1,5 @@
 #include "kernel_loader.h"
+#include "huffman.h"
 
 #define CL_TARGET_OPENCL_VERSION 220
 #include <CL/cl.h>
@@ -183,17 +184,31 @@ int main(void) {
     qsort(freq_seq_top, 256, sizeof(freq_seq_top[0]), compare_freq);
     qsort(freq_gpu_top, 256, sizeof(freq_gpu_top[0]), compare_freq);
 
-    printf("\nSeq: Top 10 byte frequencies:\n");
-    for (int i = 0; i < 10; i++) {
-        printf("Byte %3d: %d\n", freq_seq_top[i][0], freq_seq_top[i][1]);
-    }
-    printf("Seq: Runtime: %.6f sec\n", time_seq);
+    char codes[256][256] = {{0}};
+    huffmanEncoding(input, codes);
 
-    printf("\nOpenCL: Top 10 byte frequencies:\n");
-    for (int i = 0; i < 10; i++) {
-        printf("Byte %3d: %d\n", freq_gpu_top[i][0], freq_gpu_top[i][1]);
-    }
-    printf("OpenCL: Runtime: %.6f sec\n", time_gpu);
+	printf("\nSeq: Top 10 byte frequencies:\n");
+	for (int i = 0; i < 10; i++) {
+		int byteVal = freq_seq_top[i][0];
+		int count = freq_seq_top[i][1];
+		printf("Byte %3d: %d\n", byteVal, count);
+		if (codes[byteVal][0] != '\0') {
+			printf("Code: %s\n", codes[byteVal]);
+		}
+	}
+	printf("Seq: Runtime: %.6f sec\n", time_seq);
+
+	printf("\nOpenCL: Top 10 byte frequencies:\n");
+	for (int i = 0; i < 10; i++) {
+		int byteVal = freq_gpu_top[i][0];
+		int count = freq_gpu_top[i][1];
+		printf("Byte %3d: %d\n", byteVal, count);
+		if (codes[byteVal][0] != '\0') {
+			printf("Code: %s\n", codes[byteVal]);
+		}
+	}
+	printf("OpenCL: Runtime: %.6f sec\n", time_gpu);
+
 
     clReleaseKernel(kernel);
     clReleaseProgram(program);
