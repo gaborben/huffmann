@@ -185,8 +185,9 @@ int main(void) {
     qsort(freq_gpu_top, 256, sizeof(freq_gpu_top[0]), compare_freq);
 
     char codes[256][256] = {{0}};
-    huffmanEncoding(input, codes);
-
+    //huffmanEncoding(input, input_len, codes);
+    huffmanEncoding2(freq_gpu, codes);
+    
 	printf("\nSeq: Top 10 byte frequencies:\n");
 	for (int i = 0; i < 10; i++) {
 		int byteVal = freq_seq_top[i][0];

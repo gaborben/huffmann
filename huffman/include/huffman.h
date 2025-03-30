@@ -1,6 +1,8 @@
 #ifndef HUFFMAN_H
 #define HUFFMAN_H
 
+#include <stddef.h>
+
 typedef struct Node {
     char charValue;
     int freq;
@@ -8,6 +10,10 @@ typedef struct Node {
     struct Node* right;
 } Node;
 
-void huffmanEncoding(const char* word, char codes[256][256]);
+void huffmanEncoding(const char* word, size_t length, char codes[256][256]);
+void huffmanEncoding2(const int freq[256], char codes[256][256]);
+
+
+
 
 #endif

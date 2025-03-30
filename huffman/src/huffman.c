@@ -6,11 +6,10 @@
 static Node* nodes[256];
 static int nodeCount = 0;
 
-static void calculateFrequencies(const char* word) {
+static void calculateFrequencies(const char* word, size_t length) {
     int frequencies[256] = {0};
-    int n = strlen(word);
 
-    for (int i = 0; i < n; i++) {
+    for (size_t i = 0; i < length; i++) {
         frequencies[(unsigned char)word[i]]++;
     }
 
@@ -81,12 +80,32 @@ static void generateHuffmanCodes(Node* node, char* currentCode, int depth, char 
     }
 }
 
-void huffmanEncoding(const char* word, char codes[256][256]) {
+void huffmanEncoding(const char* word, size_t length, char codes[256][256]) {
     nodeCount = 0;
     memset(nodes, 0, sizeof(nodes));
-    calculateFrequencies(word);
+    calculateFrequencies(word, length);
     Node* root = buildHuffmanTree();
 
+    char currentCode[256];
+    generateHuffmanCodes(root, currentCode, 0, codes);
+}
+
+void huffmanEncoding2(const int freq[256], char codes[256][256]) {
+    nodeCount = 0;
+    memset(nodes, 0, sizeof(nodes));
+
+    for (int i = 0; i < 256; i++) {
+        if (freq[i] > 0) {
+            nodes[nodeCount] = (Node*)malloc(sizeof(Node));
+            nodes[nodeCount]->charValue = (char)i;
+            nodes[nodeCount]->freq = freq[i];
+            nodes[nodeCount]->left = NULL;
+            nodes[nodeCount]->right = NULL;
+            nodeCount++;
+        }
+    }
+
+    Node* root = buildHuffmanTree();
     char currentCode[256];
     generateHuffmanCodes(root, currentCode, 0, codes);
 }
