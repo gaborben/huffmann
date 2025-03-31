@@ -12,8 +12,6 @@ typedef struct Node {
 
 void huffmanEncoding(const char* word, size_t length, char codes[256][256]);
 void huffmanEncoding2(const int freq[256], char codes[256][256]);
-
-
-
+void encode_input_with_huffman(const char* input, size_t input_len, char codes[256][256], char* output_bits, size_t* output_bit_len);
 
 #endif

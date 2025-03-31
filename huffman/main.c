@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 #include <time.h>
 
 #define MAX_INPUT_SIZE 100000000
@@ -209,6 +210,56 @@ int main(void) {
 		}
 	}
 	printf("OpenCL: Runtime: %.6f sec\n", time_gpu);
+
+	// Huffman kódolás szekvenciálisan
+
+	//char* encoded_bits_seq = malloc(MAX_INPUT_SIZE * 20);
+    //char encoded_bits_seq[4096];
+
+    size_t total_bits = 0;
+    for (size_t i = 0; i < input_len; i++) {
+        total_bits += strlen(codes[(unsigned char)input[i]]);
+    }
+    char* encoded_bits_seq = malloc(total_bits + 1);
+    if (!encoded_bits_seq) {
+        fprintf(stderr, "Memory allocation failed for encoded bits!\n");
+        free(input);
+        return 1;
+    }
+
+	size_t bitlen_seq = 0;
+	clock_t start_huff_seq = clock();
+	encode_input_with_huffman(input, input_len, codes, encoded_bits_seq, &bitlen_seq);
+	clock_t end_huff_seq = clock();
+	double time_huff_seq = (double)(end_huff_seq - start_huff_seq) / CLOCKS_PER_SEC;
+
+    printf("Huffman encoding runtime: %.6f sec\n", time_huff_seq);
+
+    printf("\nIn which do you want to get the first 100 bits of the Huffman code?\n");
+	printf("1. Print to screen\n");
+	printf("2. Save to output.txt\n");
+	printf("Enter choice [1/2]: ");
+	int output_choice;
+	scanf("%d", &output_choice);
+	getchar();
+
+	if (output_choice == 1) {
+		printf("First 100 bits:\n");
+		for (int i = 0; i < 100 && i < bitlen_seq; i++) {
+			putchar(encoded_bits_seq[i]);
+		}
+		putchar('\n');
+	} else {
+		FILE* out = fopen("output.txt", "w");
+		if (out) {
+			fwrite(encoded_bits_seq, 1, (bitlen_seq > 100 ? 100 : bitlen_seq), out);
+			fclose(out);
+			printf("First 100 bits written to output.txt\n");
+		} else {
+			perror("Failed to open output.txt for writing");
+		}
+	}
+
 
 
     clReleaseKernel(kernel);

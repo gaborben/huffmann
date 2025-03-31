@@ -22,6 +22,8 @@ __kernel void generate_random_kernel(__global uchar* output, ulong seed, ulong l
         mixed ^= mixed << 21;
         mixed ^= mixed >> 11;
 
-        output[i] = (uchar)(mixed & 0xFF);
+        //output[i] = (uchar)(mixed & 0xFF);
+        output[i] = (uchar)((mixed % 255) + 1);
+
     }
 }
