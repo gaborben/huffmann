@@ -1,6 +1,4 @@
-__kernel void byte_frequency_kernel(__global const char* input,
-                                    __global int* global_freq,
-                                    const ulong length) {
+__kernel void byte_frequency_kernel(__global const char* input, __global int* global_freq, const ulong length) {
     const int local_id = get_local_id(0);
     const int group_id = get_group_id(0);
     const int local_size = get_local_size(0);
