@@ -40,19 +40,5 @@ __kernel void generate_random_kernel(__global uchar* output, ulong seed, ulong l
 
         uchar val = (uchar)(r_updated * 254.0f) + 1;
         output[i] = val;
-
-        //output[i] = (uchar)(mixed & 0xFF);
-        //output[i] = (uchar)((mixed % 255) + 1);
-
-        // ulong array[256*128];
-        // int e = 1;
-        // for (int i = 0; i < 256; i++) {
-        //     for (int j = 0; j < e; j++) {
-        //         array[i+j] = e;
-        //     }
-        //     e++;
-        // }
-        // output[i] = (uchar)(array[(mixed % (256 * 128)) + 1]);
-
     }
 }

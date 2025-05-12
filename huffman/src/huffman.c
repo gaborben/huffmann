@@ -113,19 +113,6 @@ void huffmanEncoding2(const int freq[256], char codes[256][256]) {
     generateHuffmanCodes(root, currentCode, 0, codes);
 }
 
-// void encode_input_with_huffman(const char* input, size_t input_len, char codes[256][256], char* output_bits, size_t* output_bit_len) {
-//     size_t bit_index = 0;
-//     for (size_t i = 0; i < input_len; i++) {
-//         unsigned char byte = (unsigned char)input[i];
-//         const char* code = codes[byte];
-//         for (int j = 0; code[j] != '\0'; j++) {
-//             output_bits[bit_index++] = code[j];
-//         }
-//     }
-//     output_bits[bit_index] = '\0';
-//     *output_bit_len = bit_index;
-// }
-
 void encode_input_with_huffman(const char* input, size_t input_len, char codes[256][256], char* output_bits, size_t* output_bit_len) {
     size_t bit_index = 0;
     for (size_t i = 0; i < input_len; i++) {
@@ -149,5 +136,5 @@ void encode_input_with_huffman(const char* input, size_t input_len, char codes[2
 
     output_bits[bit_index] = '\0';
     *output_bit_len = bit_index;
-    printf("[DEBUG] Huffman bitstream length: %zu\n", bit_index);
+    //printf("[DEBUG] Huffman bitstream length: %zu\n", bit_index);
 }

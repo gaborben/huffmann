@@ -9,9 +9,33 @@
 #include <string.h>
 #include <stdbool.h>
 #include <time.h>
+#include <math.h>
+#include <stdint.h>
 
-#define MAX_INPUT_SIZE 100000000
+#define MAX_INPUT_SIZE 100000000//100000000
 #define CHUNK_SIZE 1024
+
+void generate_random_seq(unsigned char *output, uint64_t length) {
+    const uint64_t a = 1664525ULL;
+    const uint64_t c = 1013904223ULL;
+    cl_ulong seed = (cl_ulong)time(NULL);
+    
+    for (uint64_t i = 0; i < length; ++i) {;
+        uint64_t local_seed = seed ^ (i * 0x5DEECE66DULL + 0xBULL);
+        for (int j = 0; j < 10; ++j) {
+            local_seed = a * local_seed + c;
+        }
+        local_seed = a * local_seed + c;
+        uint64_t mixed = local_seed;
+        mixed ^= mixed >> 33;
+        mixed ^= mixed << 21;
+        mixed ^= mixed >> 11;
+        float r = (float)(mixed & 0xFFFFFFFFULL) / 4294967295.0f;
+        float r_updated = powf(r, 2.5f);
+        unsigned char val = (unsigned char)(r_updated * 254.0f) + 1;
+        output[i] = val;
+    }
+}
 
 int compare_freq(const void* a, const void* b) {
     const int* fa = (const int*)a;
@@ -19,7 +43,7 @@ int compare_freq(const void* a, const void* b) {
     return fb[1] - fa[1];
 }
 
-int main(void) {
+int main() {
     cl_int err;
     int error_code;
 
@@ -62,6 +86,16 @@ int main(void) {
         fclose(fp);
         printf("Loaded %zu bytes from file.\n", input_len);
     } else if (choice == 2) {
+
+        //Seq
+        unsigned char *input_seq = malloc(MAX_INPUT_SIZE);
+        clock_t start_seq = clock();
+        generate_random_seq(input_seq, MAX_INPUT_SIZE);
+        clock_t end_seq = clock();
+        double time_seq = (double)(end_seq - start_seq) / CLOCKS_PER_SEC;
+        printf("Seq generation time: %.4f sec\n", time_seq);
+
+        //OpenCL
         input_len = MAX_INPUT_SIZE;
         const char* rand_kernel_code = load_kernel_source("kernels/random_generator.cl", &error_code);
         if (error_code != 0) {
@@ -93,15 +127,19 @@ int main(void) {
         size_t local_size = 256;
         size_t global_size = ((input_len + local_size - 1) / local_size) * local_size;
 
+        clock_t start_gpu = clock();
         clEnqueueNDRangeKernel(command_queue, rand_kernel, 1, NULL, &global_size, &local_size, 0, NULL, NULL);
         clFinish(command_queue);
         clEnqueueReadBuffer(command_queue, rand_buffer, CL_TRUE, 0, input_len, input, 0, NULL, NULL);
+        clock_t end_gpu = clock();
+        double time_gpu = (double)(end_gpu - start_gpu) / CLOCKS_PER_SEC;
+        printf("OpenCL generation time: %.4f sec\n", time_gpu);
 
         clReleaseKernel(rand_kernel);
         clReleaseProgram(rand_program);
         clReleaseMemObject(rand_buffer);
 
-        printf("Generated %zu random bytes with OpenCL.\n", input_len);
+        //printf("Generated %zu random bytes with OpenCL.\n", input_len);
     } else {
         printf("Enter text: ");
         fgets(input, MAX_INPUT_SIZE, stdin);
@@ -110,9 +148,8 @@ int main(void) {
             input[--input_len] = '\0';
         }
     }
-    
 
-    // CPU megoldás
+    // lineáris megoldás
     clock_t start_seq = clock();
     int freq_seq[256] = {0};
     for (size_t i = 0; i < input_len; i++) {
@@ -235,6 +272,15 @@ int main(void) {
 
     printf("Huffman encoding runtime: %.6f sec\n", time_huff_seq);
 
+    size_t compressed_bytes = (bitlen_seq + 7) / 8; // byte-ra kerekítés felfelé
+    double compression_ratio = (double)compressed_bytes / (double)input_len;
+    double saving = 100.0 - (compression_ratio * 100.0);
+
+    printf("Original size: %zu bytes\n", input_len);
+    printf("Compressed size: %zu bytes (%.0f bits)\n", compressed_bytes, (double)bitlen_seq);
+    printf("Compression ratio: %.2f%%\n", compression_ratio * 100.0);
+    printf("Space saved: %.2f%%\n", saving);
+
     printf("\nIn which do you want to get the first 100 bits of the Huffman code?\n");
 	printf("1. Print to screen\n");
 	printf("2. Save to output.txt\n");
@@ -259,8 +305,6 @@ int main(void) {
 			perror("Failed to open output.txt for writing");
 		}
 	}
-
-
 
     clReleaseKernel(kernel);
     clReleaseProgram(program);
