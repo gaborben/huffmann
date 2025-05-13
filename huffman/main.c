@@ -13,7 +13,18 @@
 #include <stdint.h>
 
 #define MAX_INPUT_SIZE 100000000//100000000
-#define CHUNK_SIZE 2048
+#define CHUNK_SIZE 1024
+
+int exponential(double start, double end, int n, size_t *out) {
+    if (n < 2 || start <= 0.0 || end <= 0.0 || out == NULL) {
+        return -1;
+    }
+    double ratio = pow(end / start, 1.0 / (n - 1));
+    for (int i = 0; i < n; ++i) {
+        out[i] = (size_t)round(start * pow(ratio, i));
+    }
+    return 0;
+}
 
 void generate_random_seq(unsigned char *output, uint64_t length) {
     const uint64_t a = 1664525ULL;
@@ -391,7 +402,9 @@ int test(size_t input_size, FILE *f_gen,FILE *f_freq, FILE *f_comp) {
     double time_gen_gpu = (double)(end_gen_gpu - start_gen_gpu) / CLOCKS_PER_SEC;
     //printf("OpenCL generation time: %.4f sec\n", time_gpu);
 
-    fprintf(f_gen, "%zu,%.4f,%.4f\n", input_size, time_gen_seq, time_gen_gpu);
+    fprintf(f_gen, "%zu,%.4f,%.4f\n", input_size,    time_gen_seq, time_gen_gpu);
+
+    free(input_seq);
 
     //Generation end
     #pragma endregion
@@ -540,6 +553,8 @@ int test(size_t input_size, FILE *f_gen,FILE *f_freq, FILE *f_comp) {
 
     fprintf(f_comp, "%zu,%.4f\n", input_size, compression_ratio);
 
+    free(encoded_bits_seq);
+
     #pragma endregion
 
     clReleaseKernel(kernel);
@@ -582,10 +597,32 @@ int main() {
         fprintf(f_freq, "Size,SeqFreqTime,OpenCLFreqTime\n");
         fprintf(f_comp, "Size,CompressionRatio%%\n");
 
-        for (size_t s = 100; s <= MAX_INPUT_SIZE; s *= 10) {
-            printf("Current size under processing: %zu\n", s);
-            test(s, f_gen, f_freq, f_comp);
+        // for (size_t s = 100; s <= MAX_INPUT_SIZE; s *= 10) {
+        //     printf("Current size under processing: %zu\n", s);
+        //     test(s, f_gen, f_freq, f_comp);
+        // }
+
+        int n = 100;
+        double start = 100.0;
+        double end = 100000000.0;
+        size_t *exp = malloc(n * sizeof(*exp));
+        if (!exp) {
+            perror("malloc");
+            return 1;
         }
+
+        if (exponential(start, end, n, exp) != 0) {
+            fprintf(stderr, "Error while generating the expnential sequence!\n");
+            free(exp);
+            return 1;
+        }
+
+        for (int i = 0; i < n; ++i) {
+            printf("  [%2d] %zu\n", i, exp[i]);
+            test(exp[i], f_gen, f_freq, f_comp);
+        }
+
+        free(exp);
 
         fclose(f_gen);
         fclose(f_freq);

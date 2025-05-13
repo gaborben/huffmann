@@ -122,6 +122,7 @@ void encode_input_with_huffman(const char* input, size_t input_len, char codes[2
         if (code == NULL || code[0] == '\0') {
             printf("[ERROR] Missing Huffman code for byte %d (char: '%c')\n", byte, byte);
             continue;
+            //return 1;
         }
 
         for (int j = 0; code[j] != '\0'; j++) {
