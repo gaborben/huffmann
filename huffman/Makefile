@@ -1,21 +1,20 @@
-CC = gcc
-CXX = g++
-CFLAGS = -Iinclude
-CXXFLAGS = -Iinclude -IC:/msys64/mingw64/include
-LDFLAGS = -LC:/msys64/mingw64/lib -lgtest -lgtest_main -pthread
+CC       = gcc
+CFLAGS   = -Iinclude
+LDFLAGS  = -lOpenCL
 
-SRC = src/kernel_loader.c src/huffman.c
-MAIN = main.c
-TARGET = main.exe
+SRC      = src/kernel_loader.c src/huffman.c
+MAIN     = main.c
+BUILD_DIR= build
+TARGET   = $(BUILD_DIR)/main.exe
 
-TEST_SRC = tests/test_huffman.cpp
-TEST_BIN = test_runner.exe
+.PHONY: all clean
 
 all:
-	$(CC) $(MAIN) $(SRC) -o $(TARGET) $(CFLAGS) -lOpenCL
-
-test:
-	$(CXX) $(TEST_SRC) $(SRC) -o $(TEST_BIN) $(CXXFLAGS) $(LDFLAGS)
+	@cls
+	@if not exist $(BUILD_DIR) mkdir $(BUILD_DIR)
+	$(CC) $(MAIN) $(SRC) -o $(TARGET) $(CFLAGS) $(LDFLAGS)
+	@$(TARGET)
 
 clean:
-	del /Q $(TARGET) $(TEST_BIN) 2>nul || exit 0
+	@cls
+	@if exist $(TARGET) del /Q $(TARGET)

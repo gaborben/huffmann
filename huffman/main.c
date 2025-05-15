@@ -2,8 +2,8 @@
 #include "huffman.h"
 
 #define CL_TARGET_OPENCL_VERSION 220
-#include <CL/cl.h>
 
+#include <CL/cl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -12,8 +12,71 @@
 #include <math.h>
 #include <stdint.h>
 
-#define MAX_INPUT_SIZE 100000000//100000000
+int  manual(int input_size);
+int  test(size_t input_size, FILE *f_gen, FILE *f_freq, FILE *f_comp);
+int  exponential(double start, double end, int n, size_t *out);
+
+#define MAX_INPUT_SIZE 100000000 // max 100000000
 #define CHUNK_SIZE 1024
+
+int mode() {
+    char mode[16];
+    while (1) {
+        printf("Select mode [manual/test]: ");
+        if (scanf("%15s", mode) != 1) {
+            int c; while ((c = getchar()) != '\n' && c != EOF) {}
+            continue;
+        }
+        int c; while ((c = getchar()) != '\n' && c != EOF) {}
+        
+        if (strcmp(mode, "manual") == 0) {
+            return manual(MAX_INPUT_SIZE);
+
+        } else if (strcmp(mode, "test") == 0) {
+
+            FILE *f_gen  = fopen("output/generation_results.txt", "w");
+            FILE *f_freq = fopen("output/byte_frequencies_results.txt", "w");
+            FILE *f_comp = fopen("output/compression_results.txt", "w");
+            if (!f_gen || !f_freq || !f_comp) {
+                perror("Failed to open result files");
+                return 1;
+            }
+
+            fprintf(f_gen,  "Size,SeqGenTime,OpenCLGenTime\n");
+            fprintf(f_freq, "Size,SeqFreqTime,OpenCLFreqTime\n");
+            fprintf(f_comp, "Size,CompressionRatio%%\n");
+
+            int n = 100;
+            double start = 100.0;
+            double end = 100000000.0;
+            size_t *exp = malloc(n * sizeof(*exp));
+            if (!exp) {
+                perror("malloc");
+                return 1;
+            }
+
+            if (exponential(start, end, n, exp) != 0) {
+                fprintf(stderr, "Error while generating the expnential sequence!\n");
+                free(exp);
+                return 1;
+            }
+
+            for (int i = 0; i < n; ++i) {
+                printf("  [%2d] %zu\n", i, exp[i]);
+                test(exp[i], f_gen, f_freq, f_comp);
+            }
+
+            free(exp);
+
+            fclose(f_gen);
+            fclose(f_freq);
+            fclose(f_comp);
+            return 0;
+        }
+
+        fprintf(stderr, "Invalid input.\n");
+    }
+}
 
 int exponential(double start, double end, int n, size_t *out) {
     if (n < 2 || start <= 0.0 || end <= 0.0 || out == NULL) {
@@ -84,10 +147,11 @@ int manual(int input_size) {
     err = clGetDeviceIDs(platform_id, CL_DEVICE_TYPE_GPU, 1, &device_id, &n_devices);
 
     cl_context context = clCreateContext(NULL, n_devices, &device_id, NULL, NULL, NULL);
-    cl_command_queue command_queue = clCreateCommandQueue(context, device_id, CL_QUEUE_PROFILING_ENABLE, NULL);
+    cl_queue_properties props[] = {CL_QUEUE_PROPERTIES, CL_QUEUE_PROFILING_ENABLE,0};
+    cl_command_queue command_queue = clCreateCommandQueueWithProperties(context, device_id, props, NULL);
 
     if (choice == 1) {
-        FILE* fp = fopen("input.txt", "rb");
+        FILE* fp = fopen("input/input.txt", "rb");
         if (!fp) {
             perror("Cannot open input.txt");
             free(input);
@@ -307,7 +371,7 @@ int manual(int input_size) {
 		}
 		putchar('\n');
 	} else {
-		FILE* out = fopen("output.txt", "w");
+		FILE* out = fopen("output/output.txt", "w");
 		if (out) {
 			fwrite(encoded_bits_seq, 1, (bitlen_seq > 100 ? 100 : bitlen_seq), out);
 			fclose(out);
@@ -349,7 +413,8 @@ int test(size_t input_size, FILE *f_gen,FILE *f_freq, FILE *f_comp) {
     err = clGetDeviceIDs(platform_id, CL_DEVICE_TYPE_GPU, 1, &device_id, &n_devices);
 
     cl_context context = clCreateContext(NULL, n_devices, &device_id, NULL, NULL, NULL);
-    cl_command_queue command_queue = clCreateCommandQueue(context, device_id, CL_QUEUE_PROFILING_ENABLE, NULL);
+    cl_queue_properties props[] = {CL_QUEUE_PROPERTIES, CL_QUEUE_PROFILING_ENABLE,0};
+    cl_command_queue command_queue = clCreateCommandQueueWithProperties(context, device_id, props, NULL);
     
     #pragma region Generation
      //Generation start
@@ -570,67 +635,5 @@ int test(size_t input_size, FILE *f_gen,FILE *f_freq, FILE *f_comp) {
 }
 
 int main() {
-    printf("Select mode:\n");
-    printf("1. Manual mode\n");
-    printf("2. Test mode\n");
-    printf("Enter choice [1/2]: ");
-    int mode_choice;
-    if (scanf("%d", &mode_choice) != 1) {
-        fprintf(stderr, "Invalid input.\n");
-        return 1;
-    }
-    getchar();
-
-    if (mode_choice == 1) {
-        return manual(MAX_INPUT_SIZE);
-    } 
-    else if (mode_choice == 2) {
-        FILE *f_gen  = fopen("generation_results.txt", "w");
-        FILE *f_freq = fopen("byte_frequencies_results.txt", "w");
-        FILE *f_comp = fopen("compression_results.txt", "w");
-        if (!f_gen || !f_freq || !f_comp) {
-            perror("Failed to open result files");
-            return 1;
-        }
-
-        fprintf(f_gen,  "Size,SeqGenTime,OpenCLGenTime\n");
-        fprintf(f_freq, "Size,SeqFreqTime,OpenCLFreqTime\n");
-        fprintf(f_comp, "Size,CompressionRatio%%\n");
-
-        // for (size_t s = 100; s <= MAX_INPUT_SIZE; s *= 10) {
-        //     printf("Current size under processing: %zu\n", s);
-        //     test(s, f_gen, f_freq, f_comp);
-        // }
-
-        int n = 100;
-        double start = 100.0;
-        double end = 100000000.0;
-        size_t *exp = malloc(n * sizeof(*exp));
-        if (!exp) {
-            perror("malloc");
-            return 1;
-        }
-
-        if (exponential(start, end, n, exp) != 0) {
-            fprintf(stderr, "Error while generating the expnential sequence!\n");
-            free(exp);
-            return 1;
-        }
-
-        for (int i = 0; i < n; ++i) {
-            printf("  [%2d] %zu\n", i, exp[i]);
-            test(exp[i], f_gen, f_freq, f_comp);
-        }
-
-        free(exp);
-
-        fclose(f_gen);
-        fclose(f_freq);
-        fclose(f_comp);
-        return 0;
-    }
-    else {
-        fprintf(stderr, "Invalid mode.\n");
-        return 1;
-    }
+    mode();
 }
