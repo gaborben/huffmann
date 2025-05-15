@@ -3,7 +3,7 @@ CFLAGS   = -Iinclude
 LDFLAGS  = -lOpenCL
 
 SRC      = src/kernel_loader.c src/huffman.c
-MAIN     = main.c
+MAIN     = src/main.c
 BUILD_DIR= build
 TARGET   = $(BUILD_DIR)/main.exe
 
